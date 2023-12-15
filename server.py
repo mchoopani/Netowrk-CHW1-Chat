@@ -1,8 +1,11 @@
+import abc
 import socket
 import threading
 
 from consts import PORT, UDP_PORT, PUBLIC_CHATROOM_ID
-from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage
+from database import DatabaseInterface, PasswordIsWrong, FileSystemDatabase
+from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
+    Response, ResponseStatus
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.bind(('0.0.0.0', PORT))
@@ -13,11 +16,12 @@ udp_sock.bind(('0.0.0.0', UDP_PORT))
 
 
 class Handler:
-    def __init__(self):
+    def __init__(self, database: DatabaseInterface):
         self.clients = {}
         self.chatroom_participants = {
             PUBLIC_CHATROOM_ID: []
         }
+        self.database = database
 
     def add_client(self, client: "Client"):
         self.clients[client.username] = client
@@ -54,11 +58,15 @@ class Handler:
         elif isinstance(message, PublicMessage):
             for client in self.chatroom_participants[message.chatroom_id]:
                 client.conn.send(str(message).encode("utf-8"))
+        elif isinstance(message, Response):
+            receiver: Client = self.clients[message.receiver]
+            receiver.conn.send(str(message).encode("utf-8"))
         else:
             raise Exception("unknown message." + str(message))
 
 
-handler = Handler()
+_database = FileSystemDatabase()
+handler = Handler(_database)
 
 
 class Client:
@@ -92,11 +100,24 @@ def handle_udp_requests():
 
 def add_client(conn, address):
     def func():
-        username = conn.recv(1024).decode()
-        client = Client(username, address, conn)
-        threading.Thread(target=client.serve).start()
+        mes = MessageFactory.new_message(conn.recv(1024).decode())
+        if not isinstance(mes, LoginPacket):
+            conn.close()
+            return
+        client = Client(mes.sender_username, address, conn)
         handler.add_client(client)
-        print(f"user {username} connected.")
+        try:
+            _, exist = _database.get_user_if_exist(mes.sender_username, mes.password)
+            if not exist:
+                _database.save_user(mes.sender_username, mes.password)
+            handler.dispatch(Response(mes.sender_username, "you are logged in.", ResponseStatus.OK))
+        except PasswordIsWrong:
+            handler.dispatch(Response(mes.sender_username, "your password is wrong", ResponseStatus.FAIL))
+            func()
+            return
+
+        threading.Thread(target=client.serve).start()
+        print(f"user {mes.sender_username} connected.")
 
     return func
 

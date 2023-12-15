@@ -5,7 +5,8 @@ from time import sleep
 
 from consts import PORT, PUBLIC_CHATROOM_ID, UDP_PORT
 from db import Database
-from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage
+from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
+    Response, ResponseStatus
 
 
 class MessageHandler:
@@ -228,7 +229,15 @@ while True:
     else:
         break
 
-sock.send(username.encode("utf-8"))
+while True:
+    password = input("enter password: ")
+    sock.send(str(LoginPacket(username, password)).encode("utf-8"))
+    response: Packet = MessageFactory.new_message(sock.recv(1024).decode("utf-8"))
+    if isinstance(response, Response):
+        print(response.content)
+        if response.status == ResponseStatus.OK:
+            break
+
 
 threading.Thread(target=get_messages(sock)).start()
 state = MenuState(sock, udp_socket, username)

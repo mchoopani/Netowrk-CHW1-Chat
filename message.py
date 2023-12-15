@@ -1,4 +1,4 @@
-from typing import List
+from enum import Enum
 
 
 class Packet:
@@ -52,6 +52,30 @@ class PublicMessage(Message):
         return f"public###{self.sender_username}###{self.chatroom_id}###{self.content}"
 
 
+class LoginPacket(Packet):
+    def __init__(self, sender_username: str, password: str):
+        super().__init__(sender_username)
+        self.password = password
+
+    def __str__(self):
+        return f"login###{self.sender_username}###{self.password}"
+
+
+class ResponseStatus(str, Enum):
+    OK = "OK"
+    FAIL = "FAIL"
+
+
+class Response(Message):
+    def __init__(self, receiver: str, response: str, status: ResponseStatus):
+        super().__init__("server", response)
+        self.receiver = receiver
+        self.status = status
+
+    def __str__(self):
+        return f"response###{self.receiver}###{self.status}###{self.content}"
+
+
 class MessageFactory:
     @classmethod
     def new_message(cls, raw_message: str) -> Packet:
@@ -71,3 +95,11 @@ class MessageFactory:
             group_id = message_splits[2]
             content = message_splits[3]
             return PublicMessage(sender, content, group_id)
+        elif message_splits[0] == 'login':
+            password = message_splits[2]
+            return LoginPacket(sender, password)
+        elif message_splits[0] == 'response':
+            status = message_splits[2]
+            receiver = message_splits[1]
+            content = message_splits[3]
+            return Response(receiver, content, ResponseStatus(status))
