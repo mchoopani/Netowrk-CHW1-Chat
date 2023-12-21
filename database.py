@@ -1,6 +1,7 @@
 import abc
 import hashlib
-
+from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
+    Response, ResponseStatus
 
 class PasswordIsWrong(Exception):
     pass
@@ -16,13 +17,23 @@ class DatabaseInterface(metaclass=abc.ABCMeta):
 
 class FileSystemDatabase(DatabaseInterface):
     # FIXME: concurrency problem !
-    _DEFAULT_PATH = "./data.txt"
+    _USERNAMES_PATH = "./data.txt"
+    _PRIVATE_CHAT_PATH = "./messages.txt"
+    _PUBLIC_CHAT_PATH = "_PublicMessages.txt"
 
-    def __init__(self, path: str = None):
-        if not path:
-            path = self._DEFAULT_PATH
-        self.path = path
-        open(self.path, "a+").close()
+    def __init__(self, user_path: str = None, pv_path: str = None, public_path: str = None):
+        if not user_path:
+            user_path = self._USERNAMES_PATH
+        if not pv_path:
+            pv_path = self._PRIVATE_CHAT_PATH
+        if not public_path:
+            public_path = self._PUBLIC_CHAT_PATH
+        self.user_path = user_path
+        self.pv_path = pv_path
+        self.public_path = public_path
+        open(self.user_path, "a+").close()
+        open(self.pv_path, "a+").close()
+        open(self.public_path, "a+").close()
 
     @classmethod
     def get_encoded_password(cls, password):
@@ -30,7 +41,7 @@ class FileSystemDatabase(DatabaseInterface):
 
     def get_user_if_exist(self, username: str, password: str):  # TODO: return user if needed
         encoded_pass = self.get_encoded_password(password)
-        with open(self.path, 'r') as f:
+        with open(self.user_path, 'r') as f:
             for line in f.readlines():
                 if not line.startswith("user"):
                     continue
@@ -43,5 +54,46 @@ class FileSystemDatabase(DatabaseInterface):
             return None, False
 
     def save_user(self, username: str, password: str):
-        with open(self.path, 'a') as f:
+        with open(self.user_path, 'a') as f:
             f.write(f"user###{username}###{self.get_encoded_password(password)}\n")
+
+    def get_pv_messages(self, sender: str, receiver: str):
+        history = []
+        with open(self.pv_path, "r") as f:
+            for line in f.readlines():
+                current_sender, content, current_receiver = line.strip().split("###")
+                if sender == current_sender and receiver == current_receiver:
+                    history.append(PrivateMessage(current_sender, content, current_receiver))
+                elif sender == current_receiver and receiver == current_sender:
+                    history.append(PrivateMessage(current_receiver, content, current_sender))
+
+        return history
+
+    def get_public_messages(self, chatroom_id: str):
+        history = []
+        with open(f"./{chatroom_id}{self.public_path}", "r") as f:
+            for line in f.readlines():
+                sender_username, content = line.strip().split("###")
+                if content.contains("join"):
+                    history.append(PublicMessage(sender_username, f'I have joined.', chatroom_id))
+                elif content.contains("left"):
+                    history.append(PublicMessage(sender_username, f'I have left.', chatroom_id))
+                else:
+                    history.append(PublicMessage(sender_username, content, chatroom_id))
+        return history
+
+    def save_message(self, message: Packet):
+        if isinstance(message, PrivateMessage):
+            with open(self.pv_path, 'a') as f:
+                f.write(f"{message.sender_username}###{message.content}###{message.receiver_username}\n")
+        elif isinstance(message, JoinChatroom):
+            with open(f"./{message.chatroom_id}{self.public_path}", 'a') as f:
+                f.write(f"{message.sender_username}###have joined.\n")
+        elif isinstance(message, LeaveChatroom):
+            with open(f"./{message.chatroom_id}{self.public_path}", 'a') as f:
+                f.write(f"{message.sender_username}###have left.\n")
+        elif isinstance(message, PublicMessage):
+            with open(f"./{message.chatroom_id}{self.public_path}", 'a') as f:
+                f.write(f"{message.sender_username}###{message.content}\n")
+        else:
+            raise Exception("unknown message." + str(message))

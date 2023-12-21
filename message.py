@@ -1,4 +1,5 @@
 from enum import Enum
+import time
 
 
 class Packet:
@@ -7,17 +8,18 @@ class Packet:
 
 
 class Message(Packet):
-    def __init__(self, sender_username: str, content: str):
+    def __init__(self, sender_username: str, content: str, message_time: time):
         super(Message, self).__init__(sender_username)
         self.content = content
+        self.time = message_time
 
     def get_human_readable_output(self):
-        return f'{self.sender_username} says: {self.content}'
+        return f'{self.sender_username} says: {self.content} at: {self.time}'
 
 
 class PrivateMessage(Message):
     def __init__(self, sender_username: str, content: str, receiver_username: str):
-        super().__init__(sender_username, content)
+        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
         self.receiver_username = receiver_username
 
     def __str__(self):
@@ -45,11 +47,20 @@ class LeaveChatroom(Chatroom):
 
 class PublicMessage(Message):
     def __init__(self, sender_username: str, content: str, chatroom_id: str):
-        super().__init__(sender_username, content)
+        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
         self.chatroom_id = chatroom_id
 
     def __str__(self):
         return f"public###{self.sender_username}###{self.chatroom_id}###{self.content}"
+
+
+class StateMessage(Message):
+    def __init__(self, sender_username: str, state: "ClientState"):
+        super().__init__(sender_username, state, time.strftime('%H:%M:%S'))
+        self.state = state
+
+    def __str__(self):
+        return f"state###{self.sender_username}###{self.state}"
 
 
 class LoginPacket(Packet):
@@ -66,9 +77,14 @@ class ResponseStatus(str, Enum):
     FAIL = "FAIL"
 
 
+class ClientState(str, Enum):
+    BUSY = "BUSY"
+    AVAILABLE = "AVAILABLE"
+
+
 class Response(Message):
     def __init__(self, receiver: str, response: str, status: ResponseStatus):
-        super().__init__("server", response)
+        super().__init__("server", response, time.strftime('%H:%M:%S'))
         self.receiver = receiver
         self.status = status
 
@@ -98,6 +114,9 @@ class MessageFactory:
         elif message_splits[0] == 'login':
             password = message_splits[2]
             return LoginPacket(sender, password)
+        elif message_splits[0] == 'state':
+            state = message_splits[2]
+            return StateMessage(sender, ClientState(state))
         elif message_splits[0] == 'response':
             status = message_splits[2]
             receiver = message_splits[1]
