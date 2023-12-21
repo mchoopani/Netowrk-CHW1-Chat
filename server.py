@@ -24,7 +24,10 @@ class Handler:
         self.database = database
 
     def add_client(self, client: "Client"):
-        self.clients[client.username] = client
+        if client.username in self.clients:
+            private_messages = _database.get_pv_messages()
+        else:
+            self.clients[client.username] = client
 
     def add_to_chatroom(self, chatroom_id: str, client: "Client"):
         participants = self.chatroom_participants.get(chatroom_id, [])
@@ -45,19 +48,23 @@ class Handler:
         if isinstance(message, PrivateMessage):
             receiver: Client = self.clients[message.receiver_username]
             receiver.conn.send(str(message).encode("utf-8"))
+            _database.save_message(message)
         elif isinstance(message, JoinChatroom):
             self.dispatch(
                 PublicMessage(message.sender_username, f'I have joined.', message.chatroom_id)
             )
             self.add_to_chatroom(message.chatroom_id, self.clients[message.sender_username])
+            _database.save_message(message)
         elif isinstance(message, LeaveChatroom):
             self.dispatch(
                 PublicMessage(message.sender_username, f'I have left.', message.chatroom_id)
             )
             self.leave_chatroom(message.chatroom_id, self.clients[message.sender_username])
+            _database.save_message(message)
         elif isinstance(message, PublicMessage):
             for client in self.chatroom_participants[message.chatroom_id]:
                 client.conn.send(str(message).encode("utf-8"))
+                _database.save_message(message)
         elif isinstance(message, Response):
             receiver: Client = self.clients[message.receiver]
             receiver.conn.send(str(message).encode("utf-8"))
