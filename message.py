@@ -52,6 +52,15 @@ class PublicMessage(Message):
         return f"public###{self.sender_username}###{self.chatroom_id}###{self.content}"
 
 
+class StateMessage(Message):
+    def __init__(self, sender_username: str, state: "ClientState"):
+        super().__init__(sender_username, state)
+        self.state = state
+
+    def __str__(self):
+        return f"state###{self.sender_username}###{self.state}"
+
+
 class LoginPacket(Packet):
     def __init__(self, sender_username: str, password: str):
         super().__init__(sender_username)
@@ -64,6 +73,11 @@ class LoginPacket(Packet):
 class ResponseStatus(str, Enum):
     OK = "OK"
     FAIL = "FAIL"
+
+
+class ClientState(str, Enum):
+    BUSY = "BUSY"
+    AVAILABLE = "AVAILABLE"
 
 
 class Response(Message):
@@ -98,6 +112,9 @@ class MessageFactory:
         elif message_splits[0] == 'login':
             password = message_splits[2]
             return LoginPacket(sender, password)
+        elif message_splits[0] == 'state':
+            state = message_splits[2]
+            return StateMessage(sender, ClientState(state))
         elif message_splits[0] == 'response':
             status = message_splits[2]
             receiver = message_splits[1]

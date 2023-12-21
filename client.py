@@ -6,7 +6,7 @@ from time import sleep
 from consts import PORT, PUBLIC_CHATROOM_ID, UDP_PORT
 from db import Database
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus
+    Response, ResponseStatus, StateMessage, ClientState
 from database import FileSystemDatabase
 
 
@@ -63,6 +63,7 @@ class MenuState(CommandState):
         2) show your chat list
         3) open chat room
         4) list online clients
+        5) change Availability
         """
         print(menu)
         cmd = input("press any key: ")
@@ -75,6 +76,8 @@ class MenuState(CommandState):
         elif cmd == '4':
             print_online_users(self.udp_sock)
             return self.obey_and_go_next()
+        elif cmd == '5':
+            return AvailabilityState(self.sock, self.udp_sock, self.commander)
         elif cmd == '-1':
             return None
         else:
@@ -220,6 +223,14 @@ class ListClientsState(CommandState):
         self.udp_sock.sendto("list".encode('utf-8'), UDP_ADDR)
         response, _ = self.udp_sock.recvfrom(1024)
         print(f"online users:\n{response.decode('utf-8')}")
+        return MenuState(self.sock, self.udp_sock, self.commander)
+
+
+class AvailabilityState(CommandState):
+    def obey_and_go_next(self):
+        status = input('enter your state as BUSY or AVAILABLE: ')
+        message = StateMessage(self.commander, getattr(ClientState, status))
+        self.sock.send(str(message).encode('utf-8'))
         return MenuState(self.sock, self.udp_sock, self.commander)
 
 
