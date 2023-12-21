@@ -73,7 +73,7 @@ class Response(Message):
         self.status = status
 
     def __str__(self):
-        return f"response###{self.receiver}###{self.status}###{self.content}"
+        return f"response###{self.receiver}###{self.status.value}###{self.content}"
 
 
 class MessageFactory:
