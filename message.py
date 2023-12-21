@@ -1,4 +1,5 @@
 from enum import Enum
+import time
 
 
 class Packet:
@@ -7,17 +8,18 @@ class Packet:
 
 
 class Message(Packet):
-    def __init__(self, sender_username: str, content: str):
+    def __init__(self, sender_username: str, content: str, message_time: time):
         super(Message, self).__init__(sender_username)
         self.content = content
+        self.time = message_time
 
     def get_human_readable_output(self):
-        return f'{self.sender_username} says: {self.content}'
+        return f'{self.sender_username} says: {self.content} at: {self.time}'
 
 
 class PrivateMessage(Message):
     def __init__(self, sender_username: str, content: str, receiver_username: str):
-        super().__init__(sender_username, content)
+        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
         self.receiver_username = receiver_username
 
     def __str__(self):
@@ -45,7 +47,7 @@ class LeaveChatroom(Chatroom):
 
 class PublicMessage(Message):
     def __init__(self, sender_username: str, content: str, chatroom_id: str):
-        super().__init__(sender_username, content)
+        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
         self.chatroom_id = chatroom_id
 
     def __str__(self):
@@ -54,7 +56,7 @@ class PublicMessage(Message):
 
 class StateMessage(Message):
     def __init__(self, sender_username: str, state: "ClientState"):
-        super().__init__(sender_username, state)
+        super().__init__(sender_username, state, time.strftime('%H:%M:%S'))
         self.state = state
 
     def __str__(self):
@@ -82,7 +84,7 @@ class ClientState(str, Enum):
 
 class Response(Message):
     def __init__(self, receiver: str, response: str, status: ResponseStatus):
-        super().__init__("server", response)
+        super().__init__("server", response, time.strftime('%H:%M:%S'))
         self.receiver = receiver
         self.status = status
 
