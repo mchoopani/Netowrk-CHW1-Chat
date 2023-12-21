@@ -1,4 +1,5 @@
 import abc
+import os
 import hashlib
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
     Response, ResponseStatus
@@ -71,15 +72,16 @@ class FileSystemDatabase(DatabaseInterface):
 
     def get_public_messages(self, chatroom_id: str):
         history = []
-        with open(f"./{chatroom_id}{self.public_path}", "r") as f:
-            for line in f.readlines():
-                sender_username, content = line.strip().split("###")
-                if content.contains("join"):
-                    history.append(PublicMessage(sender_username, f'I have joined.', chatroom_id))
-                elif content.contains("left"):
-                    history.append(PublicMessage(sender_username, f'I have left.', chatroom_id))
-                else:
-                    history.append(PublicMessage(sender_username, content, chatroom_id))
+        if os.path.exists(f"./{chatroom_id}{self.public_path}"):
+            with open(f"./{chatroom_id}{self.public_path}", "r") as f:
+                for line in f.readlines():
+                    sender_username, content = line.strip().split("###")
+                    if "join" in content:
+                        history.append(PublicMessage(sender_username, f'I have joined.', chatroom_id))
+                    elif "left" in content:
+                        history.append(PublicMessage(sender_username, f'I have left.', chatroom_id))
+                    else:
+                        history.append(PublicMessage(sender_username, content, chatroom_id))
         return history
 
     def save_message(self, message: Packet):

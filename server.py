@@ -23,10 +23,7 @@ class Handler:
         self.database = database
 
     def add_client(self, client: "Client"):
-        if client.username in self.clients:
-            private_messages = _database.get_pv_messages()
-        else:
-            self.clients[client.username] = client
+        self.clients[client.username] = client
 
     def add_to_chatroom(self, chatroom_id: str, client: "Client"):
         participants = self.chatroom_participants.get(chatroom_id, [])
