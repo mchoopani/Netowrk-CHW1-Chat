@@ -6,7 +6,7 @@ from time import sleep
 from consts import PORT, PUBLIC_CHATROOM_ID, UDP_PORT
 from db import Database
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus, StateMessage, ClientState
+    Response, ResponseStatus, StateMessage, ClientState, GroupMessage, JoinGroup
 from database import FileSystemDatabase
 
 
@@ -17,7 +17,9 @@ class MessageHandler:
     def handle(self, message: Packet):
         if isinstance(message, PrivateMessage) or isinstance(message, PublicMessage):
             if isinstance(message, PublicMessage):
-                key = f'group:{message.chatroom_id}'
+                key = f'channel:{message.chatroom_id}'
+            elif isinstance(message, GroupMessage):
+                key = f'group:{message.group_id}'
             else:
                 key = message.sender_username
             # FIXME: this is not atomic!
@@ -29,6 +31,7 @@ class MessageHandler:
 db = Database.get_instance()
 handler = MessageHandler(database=db)
 _database = FileSystemDatabase()
+
 
 def get_messages(tcp_sock):
     def func():
@@ -64,6 +67,7 @@ class MenuState(CommandState):
         3) open chat room
         4) list online clients
         5) change Availability
+        6) group chat
         """
         print(menu)
         cmd = input("press any key: ")
@@ -78,6 +82,14 @@ class MenuState(CommandState):
             return self.obey_and_go_next()
         elif cmd == '5':
             return AvailabilityState(self.sock, self.udp_sock, self.commander)
+        elif cmd == '6':
+            group_id = input("Enter the group ID: ")
+            print_online_users(self.udp_sock)
+            participants_str = input("Enter the usernames (comma-separated) to invite to the group: ")
+            participants = [participant.strip() for participant in participants_str.split(",")]
+            message = JoinGroup(self.commander, group_id, participants)
+            self.sock.send(str(message).encode('utf-8'))
+            return GroupChatState(self.sock, self.udp_sock, self.commander, group_id)
         elif cmd == '-1':
             return None
         else:
@@ -169,7 +181,7 @@ class ChatroomState(CommandState):
             print(message.get_human_readable_output())
 
     def get_db_key(self):
-        return f'group:{self.chatroom_id}'
+        return f'channel:{self.chatroom_id}'
 
     def get_new_messages(self):  # FIXME: we have duplicate codes!
         prev_len = len(db.get(self.get_db_key()))
@@ -214,6 +226,59 @@ class ChatroomState(CommandState):
 
         leave = LeaveChatroom(self.commander, self.chatroom_id)
         self.sock.send(str(leave).encode('utf-8'))
+        return MenuState(self.sock, self.udp_sock, self.commander)
+
+
+class GroupChatState(CommandState):
+    def __init__(self, sck: socket.socket, udp_sock: socket.socket, commander: str, group_id: str):
+        super().__init__(sck, udp_sock, commander)
+        self.group_id = group_id
+        self.closed = False
+        history_messages = _database.get_group_messages(self.group_id)
+        for message in history_messages:
+            print(message.get_human_readable_output())
+
+    def get_db_key(self):
+        return f'group:{self.group_id}'
+
+    def get_new_messages(self):  # FIXME: we have duplicate codes!
+        prev_len = len(db.get(self.get_db_key()))
+        while True:
+            if self.closed:
+                raise Exception('group chat page state is closed.')
+            sleep(.1)
+            new_messages = db.get(self.get_db_key())
+            if len(new_messages) > prev_len:
+                prev_len = len(new_messages)
+                yield new_messages[-1]
+
+    def print_new_messages(self):
+        try:
+            for mes in self.get_new_messages():
+                if mes.sender_username == self.commander:
+                    continue
+                print(mes.get_human_readable_output())
+        except Exception as e:
+            print(e)
+
+    def obey_and_go_next(self):
+        chat_messages = db.get(self.get_db_key()) or []
+        print("\n".join(list(map(lambda mess: mess.get_human_readable_output(), chat_messages))))
+        threading.Thread(target=self.print_new_messages).start()
+
+        while True:
+            msg = input()
+            if msg == 'quit':
+                self.closed = True
+                break
+
+            message = GroupMessage(self.commander, msg, self.group_id)
+
+            self.sock.send(str(message).encode('utf-8'))
+            messages = db.get(self.get_db_key()) or []
+            messages.append(message)
+            db.set(self.get_db_key(), messages)
+
         return MenuState(self.sock, self.udp_sock, self.commander)
 
 

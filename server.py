@@ -4,7 +4,7 @@ import threading
 from consts import PORT, UDP_PORT, PUBLIC_CHATROOM_ID
 from database import DatabaseInterface, PasswordIsWrong, FileSystemDatabase
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus, ClientState, StateMessage
+    Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.bind(('0.0.0.0', PORT))
@@ -20,10 +20,16 @@ class Handler:
         self.chatroom_participants = {
             PUBLIC_CHATROOM_ID: []
         }
+        self.group_participants = {}
         self.database = database
 
     def add_client(self, client: "Client"):
         self.clients[client.username] = client
+
+    def add_to_group(self, group_id: str, client: "Client"):
+        participants = self.group_participants.get(group_id, [])
+        participants.append(client.username)
+        self.group_participants[group_id] = participants
 
     def add_to_chatroom(self, chatroom_id: str, client: "Client"):
         participants = self.chatroom_participants.get(chatroom_id, [])
@@ -70,6 +76,21 @@ class Handler:
             for client in self.chatroom_participants[message.chatroom_id]:
                 client.conn.send(str(message).encode("utf-8"))
                 _database.save_message(message)
+        elif isinstance(message, JoinGroup):
+            for participant in message.participants:
+                self.add_to_group(participant, self.clients[participant])
+
+            self.dispatch(
+                GroupMessage(message.sender_username, f'I have joined.', message.group_id)
+            )
+            _database.save_message(message)
+        elif isinstance(message, GroupMessage):
+            participants = self.group_participants.get(message.group_id, [])
+            for participant_username in participants:
+                participant_client = self.clients.get(participant_username)
+                if participant_client:
+                    participant_client.conn.send(str(message).encode("utf-8"))
+            _database.save_message(message)
         elif isinstance(message, Response):
             receiver: Client = self.clients[message.receiver]
             receiver.conn.send(str(message).encode("utf-8"))

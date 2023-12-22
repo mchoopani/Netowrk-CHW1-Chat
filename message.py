@@ -35,6 +35,15 @@ class Chatroom(Packet):
         raise NotImplementedError()
 
 
+class GroupRoom(Packet):
+    def __init__(self, sender_username: str, group_id: str):
+        super().__init__(sender_username)
+        self.group_id = group_id
+
+    def __str__(self):
+        raise NotImplementedError()
+
+
 class JoinChatroom(Chatroom):
     def __str__(self):
         return f"join###{self.sender_username}###{self.chatroom_id}"
@@ -52,6 +61,24 @@ class PublicMessage(Message):
 
     def __str__(self):
         return f"public###{self.sender_username}###{self.chatroom_id}###{self.content}"
+
+
+class GroupMessage(Message):
+    def __init__(self, sender_username: str, content: str, group_id: str):
+        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
+        self.group_id = group_id
+
+    def __str__(self):
+        return f"group###{self.sender_username}###{self.group_id}###{self.content}"
+
+
+class JoinGroup(GroupRoom):
+    def __init__(self, sender_username: str, group_id: str, participants: list):
+        super().__init__(sender_username, group_id)
+        self.participants = participants
+
+    def __str__(self):
+        return f"joinGroup###{self.sender_username}###{self.group_id}"
 
 
 class StateMessage(Message):
@@ -111,6 +138,13 @@ class MessageFactory:
             group_id = message_splits[2]
             content = message_splits[3]
             return PublicMessage(sender, content, group_id)
+        elif message_splits[0] == 'joinGroup':
+            group_id = message_splits[2]
+            return JoinGroup(sender, group_id)
+        elif message_splits[0] == 'group':
+            group_id = message_splits[2]
+            content = message_splits[3]
+            return GroupMessage(sender, content, group_id)
         elif message_splits[0] == 'login':
             password = message_splits[2]
             return LoginPacket(sender, password)
