@@ -120,7 +120,7 @@ class ChatPage(CommandState):
         self.closed = False
         history_messages = _database.get_pv_messages(self.commander, self.friend_username)
         for message in history_messages:
-            self.sock.send(str(message).encode('utf-8'))
+            print(message.get_human_readable_output())
 
     def get_new_messages(self):
         prev_len = len(db.get(self.friend_username))
@@ -166,7 +166,7 @@ class ChatroomState(CommandState):
         self.closed = False
         history_messages = _database.get_public_messages(self.chatroom_id)
         for message in history_messages:
-            self.sock.send(str(message).encode('utf-8'))
+            print(message.get_human_readable_output())
 
     def get_db_key(self):
         return f'group:{self.chatroom_id}'
