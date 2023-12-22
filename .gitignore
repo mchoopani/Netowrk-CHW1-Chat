@@ -2,3 +2,5 @@
 __pycache__/
 venv/
 data.txt
+_PublicMessages.txt
+messages.txt

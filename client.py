@@ -1,6 +1,7 @@
 import socket
 import threading
 from abc import ABC, abstractmethod
+from queue import Queue
 from time import sleep
 
 from consts import PORT, PUBLIC_CHATROOM_ID, UDP_PORT
@@ -11,8 +12,9 @@ from database import FileSystemDatabase
 
 
 class MessageHandler:
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, response_queue: Queue):
         self.db = database
+        self.response_queue = response_queue
 
     def handle(self, message: Packet):
         if isinstance(message, PrivateMessage) or isinstance(message, PublicMessage):
@@ -26,10 +28,13 @@ class MessageHandler:
             messages = self.db.get(key) or []
             messages.append(message)
             self.db.set(key, messages)
+        elif isinstance(message, Response):
+            self.response_queue.put(message)
 
 
 db = Database.get_instance()
-handler = MessageHandler(database=db)
+response_queue = Queue()
+handler = MessageHandler(database=db, response_queue=response_queue)
 _database = FileSystemDatabase()
 
 
@@ -101,6 +106,13 @@ class NewChatState(CommandState):
         receiver = input('enter a username to say hello: ')
         message = PrivateMessage(self.commander, f'hello {receiver}', receiver)
         self.sock.send(str(message).encode('utf-8'))
+        response = response_queue.get()
+        if not isinstance(response, Response):
+            print("Invalid response received.")
+            return MenuState(self.sock, self.udp_sock, self.commander)
+        elif response.status != ResponseStatus.OK:
+            print("saying hello failed: ", response.content)
+            return MenuState(self.sock, self.udp_sock, self.commander)
 
         messages = db.get(message.receiver_username) or []
         messages.append(message)
@@ -166,6 +178,14 @@ class ChatPage(CommandState):
             message = PrivateMessage(self.commander, msg, self.friend_username)
 
             self.sock.send(str(message).encode('utf-8'))
+            response = response_queue.get()
+            if not isinstance(response, Response):
+                print("Invalid response received.")
+                return ChatListState(self.sock, self.udp_sock, self.commander)
+            elif response.status != ResponseStatus.OK:
+                print("saying hello failed: ", response.content)
+                return ChatListState(self.sock, self.udp_sock, self.commander, )
+
             messages = db.get(message.receiver_username) or []
             messages.append(message)
             db.set(message.receiver_username, messages)
@@ -320,7 +340,6 @@ while True:
         print(response.content)
         if response.status == ResponseStatus.OK:
             break
-
 
 threading.Thread(target=get_messages(sock)).start()
 state = MenuState(sock, udp_socket, username)

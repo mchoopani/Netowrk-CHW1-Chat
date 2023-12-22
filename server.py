@@ -46,20 +46,22 @@ class Handler:
         except:
             pass
 
-    def check_availability(self, sender: str, receiver: str):
+    def check_availability(self, receiver: str):
         receiver_client = self.clients.get(receiver)
-        sender_client = self.clients.get(sender)
-        if receiver_client and receiver_client.state == ClientState.BUSY:
-            sender_client.conn.send(str("Your receiver is busy.").encode("utf-8"))
-            return False
-        return True
+        return receiver_client and receiver_client.state == ClientState.AVAILABLE
 
     def dispatch(self, message: Packet):
         if isinstance(message, PrivateMessage):
-            if self.check_availability(message.sender_username, message.receiver_username):
-                receiver: Client = self.clients[message.receiver_username]
+            receiver: Client = self.clients[message.receiver_username]
+            if self.check_availability(message.receiver_username):
                 receiver.conn.send(str(message).encode("utf-8"))
                 _database.save_message(message)
+                self.dispatch(Response(message.sender_username, 'message sent.', ResponseStatus.OK))
+            else:
+                self.dispatch(
+                    Response(message.sender_username, f"{message.receiver_username} is busy.", ResponseStatus.FAIL)
+                )
+
         elif isinstance(message, JoinChatroom):
             self.dispatch(
                 PublicMessage(message.sender_username, f'I have joined.', message.chatroom_id)
