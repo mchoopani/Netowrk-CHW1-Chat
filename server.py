@@ -5,7 +5,7 @@ from consts import PORT, UDP_PORT, PUBLIC_CHATROOM_ID
 from database import DatabaseInterface, PasswordIsWrong, FileSystemDatabase
 from exceptions import DisconnectException
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup
+    Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup, BusyStateMessage
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.bind(('0.0.0.0', PORT))
@@ -52,7 +52,9 @@ class Handler:
         return receiver_client and receiver_client.state == ClientState.AVAILABLE
 
     def dispatch(self, message: Packet):
-        if isinstance(message, PrivateMessage):
+        if isinstance(message, BusyStateMessage):
+            self.dispatch(Response(message.sender_username, 'You are busy.', ResponseStatus.FAIL))
+        elif isinstance(message, PrivateMessage):
             receiver: Client = self.clients[message.receiver_username]
             if self.check_availability(message.receiver_username):
                 receiver.conn.send(str(message).encode("utf-8"))
@@ -62,8 +64,6 @@ class Handler:
                 self.dispatch(
                     Response(message.sender_username, f"{message.receiver_username} is busy.", ResponseStatus.FAIL)
                 )
-        elif isinstance(message, StateMessage):
-            self.clients[message.sender_username].state = message.state
         elif isinstance(message, JoinChatroom):
             self.dispatch(
                 PublicMessage(message.sender_username, f'I have joined.', message.chatroom_id)
@@ -122,7 +122,9 @@ class Client:
                 if len(client_in) == 0:
                     raise DisconnectException()
                 message = MessageFactory.new_message(client_in)
-                if self.state == ClientState.BUSY:
+                if not handler.check_availability(self.username):
+                    busy_message = MessageFactory.new_message(f'busyState###{self.username}###busy')
+                    handler.dispatch(busy_message)
                     continue
             except DisconnectException:
                 handler.remove_client(self.username)

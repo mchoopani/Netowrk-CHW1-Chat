@@ -17,7 +17,7 @@ class MessageHandler:
         self.response_queue = response_queue
 
     def handle(self, message: Packet):
-        if isinstance(message, PrivateMessage) or isinstance(message, PublicMessage):
+        if isinstance(message, PrivateMessage) or isinstance(message, PublicMessage) or isinstance(message, GroupMessage):
             if isinstance(message, PublicMessage):
                 key = f'channel:{message.chatroom_id}'
             elif isinstance(message, GroupMessage):

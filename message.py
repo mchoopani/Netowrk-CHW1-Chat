@@ -90,6 +90,15 @@ class StateMessage(Message):
         return f"state###{self.sender_username}###{self.state}"
 
 
+class BusyStateMessage(Message):
+    def __init__(self, sender_username: str, content: str):
+        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
+        self.content = content
+
+    def __str__(self):
+        return f"busyState###{self.sender_username}###{self.content}"
+
+
 class LoginPacket(Packet):
     def __init__(self, sender_username: str, password: str):
         super().__init__(sender_username)
@@ -151,6 +160,9 @@ class MessageFactory:
         elif message_splits[0] == 'state':
             state = message_splits[2]
             return StateMessage(sender, state)
+        elif message_splits[0] == 'busyState':
+            content = message_splits[2]
+            return BusyStateMessage(sender, content)
         elif message_splits[0] == 'response':
             status = message_splits[2]
             receiver = message_splits[1]
