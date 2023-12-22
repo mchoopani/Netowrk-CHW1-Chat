@@ -62,7 +62,8 @@ class Handler:
                 self.dispatch(
                     Response(message.sender_username, f"{message.receiver_username} is busy.", ResponseStatus.FAIL)
                 )
-
+        elif isinstance(message, StateMessage):
+            self.clients[message.sender_username].state = message.state
         elif isinstance(message, JoinChatroom):
             self.dispatch(
                 PublicMessage(message.sender_username, f'I have joined.', message.chatroom_id)

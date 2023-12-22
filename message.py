@@ -150,7 +150,7 @@ class MessageFactory:
             return LoginPacket(sender, password)
         elif message_splits[0] == 'state':
             state = message_splits[2]
-            return StateMessage(sender, ClientState(state))
+            return StateMessage(sender, state)
         elif message_splits[0] == 'response':
             status = message_splits[2]
             receiver = message_splits[1]
