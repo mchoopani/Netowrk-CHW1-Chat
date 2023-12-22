@@ -89,11 +89,13 @@ class MenuState(CommandState):
             return AvailabilityState(self.sock, self.udp_sock, self.commander)
         elif cmd == '6':
             group_id = input("Enter the group ID: ")
-            print_online_users(self.udp_sock)
-            participants_str = input("Enter the usernames (comma-separated) to invite to the group: ")
-            participants = [participant.strip() for participant in participants_str.split(",")]
-            message = JoinGroup(self.commander, group_id, participants)
-            self.sock.send(str(message).encode('utf-8'))
+            if not _database.check_group_id(group_id):
+                print_online_users(self.udp_sock)
+                participants_str = input("Enter the usernames (comma-separated) to invite to the group: ")
+                participants = [participant.strip() for participant in participants_str.split(",")]
+                message = JoinGroup(self.commander, group_id, participants)
+                self.sock.send(str(message).encode('utf-8'))
+                _database.save_group_id(group_id)
             return GroupChatState(self.sock, self.udp_sock, self.commander, group_id)
         elif cmd == '-1':
             return None

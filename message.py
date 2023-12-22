@@ -140,7 +140,7 @@ class MessageFactory:
             return PublicMessage(sender, content, group_id)
         elif message_splits[0] == 'joinGroup':
             group_id = message_splits[2]
-            return JoinGroup(sender, group_id)
+            return JoinGroup(sender, group_id, [])
         elif message_splits[0] == 'group':
             group_id = message_splits[2]
             content = message_splits[3]

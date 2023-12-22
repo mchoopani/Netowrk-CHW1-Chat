@@ -39,8 +39,6 @@ class FileSystemDatabase(DatabaseInterface):
         self.group_path = group_path
         open(self.user_path, "a+").close()
         open(self.pv_path, "a+").close()
-        open(self.public_path, "a+").close()
-        open(self.group_path, "a+").close()
 
     @classmethod
     def get_encoded_password(cls, password):
@@ -120,3 +118,14 @@ class FileSystemDatabase(DatabaseInterface):
                 f.write(f"{message.sender_username}###{message.content}\n")
         else:
             raise Exception("unknown message." + str(message))
+
+    def save_group_id(self, group_id):
+        with open(self.group_path, 'a') as f:
+            f.write(f"{group_id}\n")
+
+    def check_group_id(self, group_id):
+        with open(self.group_path, 'r') as f:
+            for line in f.readlines():
+                if line.strip() == group_id:
+                    return True
+            return False
