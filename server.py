@@ -3,6 +3,7 @@ import threading
 
 from consts import PORT, UDP_PORT, PUBLIC_CHATROOM_ID
 from database import DatabaseInterface, PasswordIsWrong, FileSystemDatabase
+from exceptions import DisconnectException
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
     Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup
 
@@ -117,14 +118,17 @@ class Client:
         while True:
             try:
                 client_in = self.conn.recv(1024).decode()
+                if len(client_in) == 0:
+                    raise DisconnectException()
                 message = MessageFactory.new_message(client_in)
                 if self.state == ClientState.BUSY:
                     continue
-            except Exception as _:
+            except DisconnectException:
                 handler.remove_client(self.username)
                 self.conn.close()
                 print(f'client {self.username} disconnected')
                 return
+
             handler.dispatch(message)
 
 
