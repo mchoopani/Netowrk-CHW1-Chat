@@ -1,5 +1,6 @@
 from enum import Enum
 import time
+from typing import List
 
 
 class Packet:
@@ -119,6 +120,36 @@ class Response(Message):
         return f"response###{self.receiver}###{self.status.value}###{self.content}"
 
 
+class PVChatHistory(Message):
+    def __init__(self, target_username: str, messages: List[PrivateMessage]):
+        super().__init__("server", self._stringify_messages(messages), time.strftime('%H:%M:%S'))
+        self.target_username = target_username
+
+    @classmethod
+    def _stringify_messages(cls, messages: List[PrivateMessage]):
+        string_history = []
+        for message in messages:
+            string_history.append(
+                f"{message.sender_username}#{message.receiver_username}#{message.content}"
+            )
+        return "##".join(string_history)
+
+    @staticmethod
+    def get_messages(raw_string: str):
+        output = []
+        for history in raw_string.split("##"):
+            history_splits = history.split("#")
+            if len(history_splits) != 3:
+                continue
+            output.append(
+                PrivateMessage(history_splits[0], history_splits[2], history_splits[1])
+            )
+        return output
+
+    def __str__(self):
+        return f"PVChatHistory###{self.target_username}###{self.content}"
+
+
 class MessageFactory:
     @classmethod
     def new_message(cls, raw_message: str) -> Packet:
@@ -156,3 +187,5 @@ class MessageFactory:
             receiver = message_splits[1]
             content = message_splits[3]
             return Response(receiver, content, ResponseStatus(status))
+        elif message_splits[0] == 'PVChatHistory':
+            return PVChatHistory(message_splits[1], PVChatHistory.get_messages(message_splits[2]))

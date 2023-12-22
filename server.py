@@ -5,7 +5,7 @@ from consts import PORT, UDP_PORT, PUBLIC_CHATROOM_ID
 from database import DatabaseInterface, PasswordIsWrong, FileSystemDatabase
 from exceptions import DisconnectException
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup
+    Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup, PVChatHistory
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.bind(('0.0.0.0', PORT))
@@ -50,6 +50,10 @@ class Handler:
     def check_availability(self, receiver: str):
         receiver_client = self.clients.get(receiver)
         return receiver_client and receiver_client.state == ClientState.AVAILABLE
+
+    # TODO: extract these lines to a 'broadcast' func:
+    # receiver: Client = self.clients[message.target_username]
+    # receiver.conn.send(str(message).encode("utf-8"))
 
     def dispatch(self, message: Packet):
         if isinstance(message, PrivateMessage):
@@ -100,6 +104,9 @@ class Handler:
             receiver.conn.send(str(message).encode("utf-8"))
         elif isinstance(message, StateMessage):
             self.clients[message.sender_username].state = message.state
+        elif isinstance(message, PVChatHistory):
+            receiver: Client = self.clients[message.target_username]
+            receiver.conn.send(str(message).encode("utf-8"))
         else:
             raise Exception("unknown message." + str(message))
 
@@ -156,6 +163,7 @@ def add_client(conn, address):
             if not exist:
                 _database.save_user(mes.sender_username, mes.password)
             handler.dispatch(Response(mes.sender_username, "you are logged in.", ResponseStatus.OK))
+            handler.dispatch(PVChatHistory(mes.sender_username, _database.get_pv_messages2(mes.sender_username)))
         except PasswordIsWrong:
             handler.dispatch(Response(mes.sender_username, "your password is wrong", ResponseStatus.FAIL))
             func()

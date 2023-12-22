@@ -7,7 +7,7 @@ from time import sleep
 from consts import PORT, PUBLIC_CHATROOM_ID, UDP_PORT
 from db import Database
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus, StateMessage, ClientState, GroupMessage, JoinGroup
+    Response, ResponseStatus, StateMessage, ClientState, GroupMessage, JoinGroup, PVChatHistory
 from database import FileSystemDatabase
 
 
@@ -144,9 +144,6 @@ class ChatPage(CommandState):
         super().__init__(sck, udp_sock, commander)
         self.friend_username = friend_username
         self.closed = False
-        history_messages = _database.get_pv_messages(self.commander, self.friend_username)
-        for message in history_messages:
-            print(message.get_human_readable_output())
 
     def get_new_messages(self):
         prev_len = len(db.get(self.friend_username))
@@ -340,8 +337,17 @@ while True:
     response: Packet = MessageFactory.new_message(sock.recv(1024).decode("utf-8"))
     if isinstance(response, Response):
         print(response.content)
-        if response.status == ResponseStatus.OK:
-            break
+        if response.status != ResponseStatus.OK:
+            continue
+        # get history of private messages and sync local database
+        response: Packet = MessageFactory.new_message(sock.recv(1024).decode("utf-8"))
+        if isinstance(response, PVChatHistory):
+            for message in PVChatHistory.get_messages(response.content):
+                friend_username = message.sender_username if message.receiver_username == username else message.receiver_username
+                messages = db.get(friend_username) or []
+                messages.append(message)
+                db.set(friend_username, messages)
+        break
 
 threading.Thread(target=get_messages(sock)).start()
 state = MenuState(sock, udp_socket, username)

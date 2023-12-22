@@ -74,6 +74,18 @@ class FileSystemDatabase(DatabaseInterface):
 
         return history
 
+    def get_pv_messages2(self, target: str):
+        history = []
+        with open(self.pv_path, "r") as f:
+            for line in f.readlines():
+                current_sender, content, current_receiver = line.strip().split("###")
+                if current_sender == target:
+                    history.append(PrivateMessage(current_sender, content, current_receiver))
+                elif current_receiver == target:
+                    history.append(PrivateMessage(current_receiver, content, current_sender))
+
+        return history
+
     def get_public_messages(self, chatroom_id: str):
         history = []
         if os.path.exists(f"./{chatroom_id}{self.public_path}"):
