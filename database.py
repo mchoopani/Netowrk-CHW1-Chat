@@ -62,28 +62,13 @@ class FileSystemDatabase(DatabaseInterface):
         with open(self.user_path, 'a') as f:
             f.write(f"user###{username}###{self.get_encoded_password(password)}\n")
 
-    def get_pv_messages(self, sender: str, receiver: str):
+    def get_pv_messages(self, target: str):
         history = []
         with open(self.pv_path, "r") as f:
             for line in f.readlines():
-                current_sender, content, current_receiver = line.strip().split("###")
-                if sender == current_sender and receiver == current_receiver:
-                    history.append(PrivateMessage(current_sender, content, current_receiver))
-                elif sender == current_receiver and receiver == current_sender:
-                    history.append(PrivateMessage(current_receiver, content, current_sender))
-
-        return history
-
-    def get_pv_messages2(self, target: str):
-        history = []
-        with open(self.pv_path, "r") as f:
-            for line in f.readlines():
-                current_sender, content, current_receiver = line.strip().split("###")
-                if current_sender == target:
-                    history.append(PrivateMessage(current_sender, content, current_receiver))
-                elif current_receiver == target:
-                    history.append(PrivateMessage(current_receiver, content, current_sender))
-
+                current_sender, content, current_receiver, time = line.strip().split("###")
+                if current_sender == target or current_receiver == target:
+                    history.append(PrivateMessage(current_sender, content, current_receiver, time))
         return history
 
     def get_public_messages(self, chatroom_id: str):
@@ -91,13 +76,13 @@ class FileSystemDatabase(DatabaseInterface):
         if os.path.exists(f"./{chatroom_id}{self.public_path}"):
             with open(f"./{chatroom_id}{self.public_path}", "r") as f:
                 for line in f.readlines():
-                    sender_username, content = line.strip().split("###")
+                    sender_username, content, time = line.strip().split("###")
                     if "join" in content:
-                        history.append(PublicMessage(sender_username, f'I have joined.', chatroom_id))
+                        history.append(PublicMessage(sender_username, f'I have joined.', chatroom_id, time))
                     elif "left" in content:
-                        history.append(PublicMessage(sender_username, f'I have left.', chatroom_id))
+                        history.append(PublicMessage(sender_username, f'I have left.', chatroom_id, time))
                     else:
-                        history.append(PublicMessage(sender_username, content, chatroom_id))
+                        history.append(PublicMessage(sender_username, content, chatroom_id, time))
         return history
 
     def get_group_messages(self, group_id: str):
@@ -105,14 +90,14 @@ class FileSystemDatabase(DatabaseInterface):
         if os.path.exists(f"./{group_id}{self.group_path}"):
             with open(f"./{group_id}{self.group_path}", "r") as f:
                 for line in f.readlines():
-                    sender_username, content = line.strip().split("###")
-                    history.append(GroupMessage(sender_username, content, group_id))
+                    sender_username, content, time = line.strip().split("###")
+                    history.append(GroupMessage(sender_username, content, group_id, time))
         return history
 
     def save_message(self, message: Packet):
         if isinstance(message, PrivateMessage):
             with open(self.pv_path, 'a') as f:
-                f.write(f"{message.sender_username}###{message.content}###{message.receiver_username}\n")
+                f.write(f"{message.sender_username}###{message.content}###{message.receiver_username}###{message.time}\n")
         elif isinstance(message, JoinChatroom):
             with open(f"./{message.chatroom_id}{self.public_path}", 'a') as f:
                 f.write(f"{message.sender_username}###have joined.\n")
@@ -121,13 +106,13 @@ class FileSystemDatabase(DatabaseInterface):
                 f.write(f"{message.sender_username}###have left.\n")
         elif isinstance(message, PublicMessage):
             with open(f"./{message.chatroom_id}{self.public_path}", 'a') as f:
-                f.write(f"{message.sender_username}###{message.content}\n")
+                f.write(f"{message.sender_username}###{message.content}###{message.time}\n")
         elif isinstance(message, JoinGroup):
             with open(f"./{message.group_id}{self.group_path}", 'a') as f:
                 f.write(f"{message.sender_username}###have joined.\n")
         elif isinstance(message, GroupMessage):
             with open(f"./{message.group_id}{self.group_path}", 'a') as f:
-                f.write(f"{message.sender_username}###{message.content}\n")
+                f.write(f"{message.sender_username}###{message.content}###{message.time}\n")
         else:
             raise Exception("unknown message." + str(message))
 

@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 
 from consts import PORT, UDP_PORT, PUBLIC_CHATROOM_ID
 from database import DatabaseInterface, PasswordIsWrong, FileSystemDatabase
@@ -56,27 +57,28 @@ class Handler:
     # receiver.conn.send(str(message).encode("utf-8"))
 
     def dispatch(self, message: Packet):
+        message_time = time.strftime('%H:%M:%S')
         if isinstance(message, BusyStateMessage):
-            self.dispatch(Response(message.sender_username, 'You are busy.', ResponseStatus.FAIL))
+            self.dispatch(Response(message.sender_username, 'You are busy.', ResponseStatus.FAIL, message_time))
         elif isinstance(message, PrivateMessage):
             receiver: Client = self.clients[message.receiver_username]
             if self.check_availability(message.receiver_username):
                 receiver.conn.send(str(message).encode("utf-8"))
                 _database.save_message(message)
-                self.dispatch(Response(message.sender_username, 'message sent.', ResponseStatus.OK))
+                self.dispatch(Response(message.sender_username, 'message sent.', ResponseStatus.OK, message_time))
             else:
                 self.dispatch(
-                    Response(message.sender_username, f"{message.receiver_username} is busy.", ResponseStatus.FAIL)
+                    Response(message.sender_username, f"{message.receiver_username} is busy.", ResponseStatus.FAIL, message_time)
                 )
         elif isinstance(message, JoinChatroom):
             self.dispatch(
-                PublicMessage(message.sender_username, f'I have joined.', message.chatroom_id)
+                PublicMessage(message.sender_username, f'I have joined.', message.chatroom_id, message_time)
             )
             self.add_to_chatroom(message.chatroom_id, self.clients[message.sender_username])
             _database.save_message(message)
         elif isinstance(message, LeaveChatroom):
             self.dispatch(
-                PublicMessage(message.sender_username, f'I have left.', message.chatroom_id)
+                PublicMessage(message.sender_username, f'I have left.', message.chatroom_id, message_time)
             )
             self.leave_chatroom(message.chatroom_id, self.clients[message.sender_username])
             _database.save_message(message)
@@ -89,7 +91,7 @@ class Handler:
                 self.add_to_group(participant, self.clients[participant])
 
             self.dispatch(
-                GroupMessage(message.sender_username, f'I have joined.', message.group_id)
+                GroupMessage(message.sender_username, f'I have joined.', message.group_id, message_time)
             )
             _database.save_message(message)
         elif isinstance(message, GroupMessage):
@@ -164,10 +166,10 @@ def add_client(conn, address):
             _, exist = _database.get_user_if_exist(mes.sender_username, mes.password)
             if not exist:
                 _database.save_user(mes.sender_username, mes.password)
-            handler.dispatch(Response(mes.sender_username, "you are logged in.", ResponseStatus.OK))
-            handler.dispatch(PVChatHistory(mes.sender_username, _database.get_pv_messages2(mes.sender_username)))
+            handler.dispatch(Response(mes.sender_username, "you are logged in.", ResponseStatus.OK, time.strftime('%H:%M:%S')))
+            handler.dispatch(PVChatHistory(mes.sender_username, _database.get_pv_messages(mes.sender_username)))
         except PasswordIsWrong:
-            handler.dispatch(Response(mes.sender_username, "your password is wrong", ResponseStatus.FAIL))
+            handler.dispatch(Response(mes.sender_username, "your password is wrong", ResponseStatus.FAIL, time.strftime('%H:%M:%S')))
             func()
             return
 

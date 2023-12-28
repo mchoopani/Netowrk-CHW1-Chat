@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 from abc import ABC, abstractmethod
 from queue import Queue
 from time import sleep
@@ -106,7 +107,7 @@ class MenuState(CommandState):
 class NewChatState(CommandState):
     def obey_and_go_next(self) -> CommandState:
         receiver = input('enter a username to say hello: ')
-        message = PrivateMessage(self.commander, f'hello {receiver}', receiver)
+        message = PrivateMessage(self.commander, f'hello {receiver}', receiver, time.strftime('%H:%M:%S'))
         self.sock.send(str(message).encode('utf-8'))
         response = response_queue.get()
         if not isinstance(response, Response):
@@ -174,7 +175,7 @@ class ChatPage(CommandState):
             if msg == 'quit':
                 self.closed = True
                 return ChatListState(self.sock, self.udp_sock, self.commander)
-            message = PrivateMessage(self.commander, msg, self.friend_username)
+            message = PrivateMessage(self.commander, msg, self.friend_username, time.strftime('%H:%M:%S'))
 
             self.sock.send(str(message).encode('utf-8'))
             response = response_queue.get()
@@ -236,7 +237,7 @@ class ChatroomState(CommandState):
                 self.closed = True
                 break
 
-            message = PublicMessage(self.commander, msg, self.chatroom_id)
+            message = PublicMessage(self.commander, msg, self.chatroom_id, time.strftime('%H:%M:%S'))
 
             self.sock.send(str(message).encode('utf-8'))
             messages = db.get(self.get_db_key()) or []
@@ -291,7 +292,7 @@ class GroupChatState(CommandState):
                 self.closed = True
                 break
 
-            message = GroupMessage(self.commander, msg, self.group_id)
+            message = GroupMessage(self.commander, msg, self.group_id, time.strftime('%H:%M:%S'))
 
             self.sock.send(str(message).encode('utf-8'))
             messages = db.get(self.get_db_key()) or []

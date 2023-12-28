@@ -19,12 +19,12 @@ class Message(Packet):
 
 
 class PrivateMessage(Message):
-    def __init__(self, sender_username: str, content: str, receiver_username: str):
-        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
+    def __init__(self, sender_username: str, content: str, receiver_username: str, message_time: time):
+        super().__init__(sender_username, content, message_time)
         self.receiver_username = receiver_username
 
     def __str__(self):
-        return f"private###{self.sender_username}###{self.receiver_username}###{self.content}"
+        return f"private###{self.sender_username}###{self.receiver_username}###{self.content}###{self.time}"
 
 
 class Chatroom(Packet):
@@ -56,21 +56,21 @@ class LeaveChatroom(Chatroom):
 
 
 class PublicMessage(Message):
-    def __init__(self, sender_username: str, content: str, chatroom_id: str):
-        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
+    def __init__(self, sender_username: str, content: str, chatroom_id: str, message_time: time):
+        super().__init__(sender_username, content, message_time)
         self.chatroom_id = chatroom_id
 
     def __str__(self):
-        return f"public###{self.sender_username}###{self.chatroom_id}###{self.content}"
+        return f"public###{self.sender_username}###{self.chatroom_id}###{self.content}###{self.time}"
 
 
 class GroupMessage(Message):
-    def __init__(self, sender_username: str, content: str, group_id: str):
-        super().__init__(sender_username, content, time.strftime('%H:%M:%S'))
+    def __init__(self, sender_username: str, content: str, group_id: str, message_time: str):
+        super().__init__(sender_username, content, message_time)
         self.group_id = group_id
 
     def __str__(self):
-        return f"group###{self.sender_username}###{self.group_id}###{self.content}"
+        return f"group###{self.sender_username}###{self.group_id}###{self.content}###{self.time}"
 
 
 class JoinGroup(GroupRoom):
@@ -120,13 +120,13 @@ class ClientState(str, Enum):
 
 
 class Response(Message):
-    def __init__(self, receiver: str, response: str, status: ResponseStatus):
-        super().__init__("server", response, time.strftime('%H:%M:%S'))
+    def __init__(self, receiver: str, response: str, status: ResponseStatus, message_time: time):
+        super().__init__("server", response, message_time)
         self.receiver = receiver
         self.status = status
 
     def __str__(self):
-        return f"response###{self.receiver}###{self.status.value}###{self.content}"
+        return f"response###{self.receiver}###{self.status.value}###{self.content}###{self.time}"
 
 
 class PVChatHistory(Message):
@@ -139,7 +139,7 @@ class PVChatHistory(Message):
         string_history = []
         for message in messages:
             string_history.append(
-                f"{message.sender_username}#{message.receiver_username}#{message.content}"
+                f"{message.sender_username}#{message.receiver_username}#{message.content}#{message.time}"
             )
         return "##".join(string_history)
 
@@ -148,10 +148,10 @@ class PVChatHistory(Message):
         output = []
         for history in raw_string.split("##"):
             history_splits = history.split("#")
-            if len(history_splits) != 3:
+            if len(history_splits) != 4:
                 continue
             output.append(
-                PrivateMessage(history_splits[0], history_splits[2], history_splits[1])
+                PrivateMessage(history_splits[0], history_splits[2], history_splits[1], history_splits[3])
             )
         return output
 
@@ -167,7 +167,8 @@ class MessageFactory:
         if message_splits[0] == 'private':
             receiver = message_splits[2]
             content = message_splits[3]
-            return PrivateMessage(sender, content, receiver)
+            time = message_splits[4]
+            return PrivateMessage(sender, content, receiver, time)
         elif message_splits[0] == 'join':
             chatroom_id = message_splits[2]
             return JoinChatroom(sender, chatroom_id)
@@ -177,14 +178,16 @@ class MessageFactory:
         elif message_splits[0] == 'public':
             group_id = message_splits[2]
             content = message_splits[3]
-            return PublicMessage(sender, content, group_id)
+            time = message_splits[4]
+            return PublicMessage(sender, content, group_id, time)
         elif message_splits[0] == 'joinGroup':
             group_id = message_splits[2]
             return JoinGroup(sender, group_id, [])
         elif message_splits[0] == 'group':
             group_id = message_splits[2]
             content = message_splits[3]
-            return GroupMessage(sender, content, group_id)
+            time = message_splits[4]
+            return GroupMessage(sender, content, group_id, time)
         elif message_splits[0] == 'login':
             password = message_splits[2]
             return LoginPacket(sender, password)
@@ -198,6 +201,7 @@ class MessageFactory:
             status = message_splits[2]
             receiver = message_splits[1]
             content = message_splits[3]
-            return Response(receiver, content, ResponseStatus(status))
+            time = message_splits[4]
+            return Response(receiver, content, ResponseStatus(status), time)
         elif message_splits[0] == 'PVChatHistory':
             return PVChatHistory(message_splits[1], PVChatHistory.get_messages(message_splits[2]))
