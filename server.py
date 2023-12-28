@@ -84,8 +84,9 @@ class Handler:
             _database.save_message(message)
         elif isinstance(message, PublicMessage):
             for client in self.chatroom_participants[message.chatroom_id]:
-                client.conn.send(str(message).encode("utf-8"))
-                _database.save_message(message)
+                if self.check_availability(client.username):
+                    client.conn.send(str(message).encode("utf-8"))
+            _database.save_message(message)
         elif isinstance(message, JoinGroup):
             for participant in message.participants:
                 self.add_to_group(participant, self.clients[participant])
@@ -97,9 +98,10 @@ class Handler:
         elif isinstance(message, GroupMessage):
             participants = self.group_participants.get(message.group_id, [])
             for participant_username in participants:
-                participant_client = self.clients.get(participant_username)
-                if participant_client:
-                    participant_client.conn.send(str(message).encode("utf-8"))
+                if self.check_availability(participant_username):
+                    participant_client = self.clients.get(participant_username)
+                    if participant_client:
+                        participant_client.conn.send(str(message).encode("utf-8"))
             _database.save_message(message)
         elif isinstance(message, Response):
             receiver: Client = self.clients[message.receiver]
@@ -131,10 +133,12 @@ class Client:
                 if len(client_in) == 0:
                     raise DisconnectException()
                 message = MessageFactory.new_message(client_in)
+
                 if not handler.check_availability(self.username):
-                    busy_message = MessageFactory.new_message(f'busyState###{self.username}###busy')
-                    handler.dispatch(busy_message)
-                    continue
+                    if not isinstance(message, StateMessage):
+                        busy_message = MessageFactory.new_message(f'busyState###{self.username}###busy')
+                        handler.dispatch(busy_message)
+                        continue
             except DisconnectException:
                 handler.remove_client(self.username)
                 self.conn.close()

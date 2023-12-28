@@ -88,7 +88,7 @@ class StateMessage(Message):
         self.state = state
 
     def __str__(self):
-        return f"state###{self.sender_username}###{self.state}"
+        return f"state###{self.sender_username}###{self.state.value}"
 
 
 class BusyStateMessage(Message):
@@ -192,7 +192,7 @@ class MessageFactory:
             password = message_splits[2]
             return LoginPacket(sender, password)
         elif message_splits[0] == 'state':
-            state = message_splits[2]
+            state = ClientState(message_splits[2])
             return StateMessage(sender, state)
         elif message_splits[0] == 'busyState':
             content = message_splits[2]
