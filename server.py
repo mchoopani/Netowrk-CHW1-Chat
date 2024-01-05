@@ -8,7 +8,7 @@ from database import DatabaseInterface, PasswordIsWrong, FileSystemDatabase
 from exceptions import DisconnectException
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
     Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup, BusyStateMessage, PVChatHistory, \
-    CheckGroupId
+    CheckGroupId, PublicChatHistory
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.bind(('0.0.0.0', PORT))
@@ -93,7 +93,6 @@ class Handler:
         elif isinstance(message, JoinGroup):
             for participant in message.participants:
                 self.add_to_group(message.group_id, self.clients[participant])
-
             self.dispatch(
                 GroupMessage(message.sender_username, f'I have joined.', message.group_id, message_time)
             )
@@ -114,11 +113,17 @@ class Handler:
         elif isinstance(message, PVChatHistory):
             receiver: Client = self.clients[message.target_username]
             receiver.conn.send(str(message).encode("utf-8"))
+        elif isinstance(message, PublicChatHistory):
+            receiver: Client = self.clients[message.receiver]
+            receiver.conn.send(str(message).encode("utf-8"))
         elif isinstance(message, CheckGroupId):
             exist = _database.check_group_id(message.group_id)
+            if exist:
+                self.add_to_group(message.group_id, self.clients[message.sender_username])
             self.dispatch(
                 Response(message.sender_username, exist, ResponseStatus.OK if exist else ResponseStatus.FAIL,
                          datetime.datetime.now()))
+            self.dispatch(PublicChatHistory(message.group_id, _database.get_group_messages(message.group_id), message.sender_username))
         else:
             raise Exception("unknown message." + str(message))
 

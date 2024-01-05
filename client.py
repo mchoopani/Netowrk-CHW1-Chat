@@ -8,14 +8,15 @@ from time import sleep
 from consts import PORT, PUBLIC_CHATROOM_ID, UDP_PORT
 from db import Database
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus, StateMessage, ClientState, GroupMessage, JoinGroup, PVChatHistory, CheckGroupId
+    Response, ResponseStatus, StateMessage, ClientState, GroupMessage, JoinGroup, PVChatHistory, CheckGroupId, PublicChatHistory
 from database import FileSystemDatabase
 
 
 class MessageHandler:
-    def __init__(self, database: Database, response_queue: Queue):
+    def __init__(self, database: Database, response_queue: Queue, history_queue: Queue):
         self.db = database
         self.response_queue = response_queue
+        self.history_queue = history_queue
 
     def handle(self, message: Packet):
         if isinstance(message, PrivateMessage) or isinstance(message, PublicMessage) or isinstance(message, GroupMessage):
@@ -31,11 +32,14 @@ class MessageHandler:
             self.db.set(key, messages)
         elif isinstance(message, Response):
             self.response_queue.put(message)
+        elif isinstance(message, PublicChatHistory):
+            self.history_queue.put(message)
 
 
 db = Database.get_instance()
 response_queue = Queue()
-handler = MessageHandler(database=db, response_queue=response_queue)
+history_queue = Queue()
+handler = MessageHandler(database=db, response_queue=response_queue, history_queue=history_queue)
 _database = FileSystemDatabase()
 
 
@@ -101,6 +105,9 @@ class MenuState(CommandState):
                 message = JoinGroup(self.commander, group_id, participants)
                 self.sock.send(str(message).encode('utf-8'))
                 _database.save_group_id(group_id)
+            history: PublicChatHistory = history_queue.get()
+            for message in PublicChatHistory.get_messages(history.content):
+                print(message.get_human_readable_output())
             return GroupChatState(self.sock, self.udp_sock, self.commander, group_id)
         elif cmd == '-1':
             return None
@@ -130,7 +137,7 @@ class NewChatState(CommandState):
 
 class ChatListState(CommandState):
     def obey_and_go_next(self):
-        usernames = list(filter(lambda key: not key.startswith('chatroom:'), db.get_all_keys()))
+        usernames = list(filter(lambda key: not key.startswith('chatroom:') and not key.startswith('group:'), db.get_all_keys()))
         console_output = ""
         for i, un in enumerate(usernames):
             console_output += f"""
@@ -260,9 +267,6 @@ class GroupChatState(CommandState):
         super().__init__(sck, udp_sock, commander)
         self.group_id = group_id
         self.closed = False
-        history_messages = _database.get_group_messages(self.group_id)
-        for message in history_messages:
-            print(message.get_human_readable_output())
 
     def get_db_key(self):
         return f'group:{self.group_id}'

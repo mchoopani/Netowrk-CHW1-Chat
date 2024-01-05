@@ -159,6 +159,38 @@ class PVChatHistory(Message):
         return f"PVChatHistory###{self.target_username}###{self.content}"
 
 
+class PublicChatHistory(Message):
+    def __init__(self, group_id: str, messages: List[GroupMessage], receiver: str):
+        super().__init__("server", self._stringify_messages(messages), time.strftime('%H:%M:%S'))
+        self.group_id = group_id
+        self.messages = messages
+        self.receiver = receiver
+
+    @classmethod
+    def _stringify_messages(cls, messages: List[GroupMessage]):
+        string_history = []
+        for message in messages:
+            string_history.append(
+                f"{message.sender_username}#{message.group_id}#{message.content}#{message.time}"
+            )
+        return "##".join(string_history)
+
+    @staticmethod
+    def get_messages(raw_string: str):
+        output = []
+        for history in raw_string.split("##"):
+            history_splits = history.split("#")
+            if len(history_splits) != 4:
+                continue
+            output.append(
+                GroupMessage(history_splits[0], history_splits[2], history_splits[1], history_splits[3])
+            )
+        return output
+
+    def __str__(self):
+        return f"PublicChatHistory###{self.group_id}###{self.content}"
+
+
 class CheckGroupId(Packet):
     def __init__(self, sender_username: str, group_id: str):
         super().__init__(sender_username)
@@ -218,3 +250,5 @@ class MessageFactory:
             return Response(receiver, content, ResponseStatus(status), time)
         elif message_splits[0] == 'PVChatHistory':
             return PVChatHistory(message_splits[1], PVChatHistory.get_messages(message_splits[2]))
+        elif message_splits[0] == 'PublicChatHistory':
+            return PublicChatHistory(message_splits[1], PublicChatHistory.get_messages(message_splits[2]), "")
