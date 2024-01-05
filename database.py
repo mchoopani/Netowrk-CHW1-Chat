@@ -39,6 +39,8 @@ class FileSystemDatabase(DatabaseInterface):
         self.group_path = group_path
         open(self.user_path, "a+").close()
         open(self.pv_path, "a+").close()
+        open(self.public_path, "a+").close()
+        open(self.group_path, "a+").close()
 
     @classmethod
     def get_encoded_password(cls, password):
@@ -99,17 +101,15 @@ class FileSystemDatabase(DatabaseInterface):
             with open(self.pv_path, 'a') as f:
                 f.write(f"{message.sender_username}###{message.content}###{message.receiver_username}###{message.time}\n")
         elif isinstance(message, JoinChatroom):
-            with open(f"./{message.chatroom_id}{self.public_path}", 'a') as f:
-                f.write(f"{message.sender_username}###have joined.\n")
+            pass
         elif isinstance(message, LeaveChatroom):
-            with open(f"./{message.chatroom_id}{self.public_path}", 'a') as f:
-                f.write(f"{message.sender_username}###have left.\n")
+            pass
         elif isinstance(message, PublicMessage):
             with open(f"./{message.chatroom_id}{self.public_path}", 'a') as f:
                 f.write(f"{message.sender_username}###{message.content}###{message.time}\n")
         elif isinstance(message, JoinGroup):
             with open(f"./{message.group_id}{self.group_path}", 'a') as f:
-                f.write(f"{message.sender_username}###have joined.\n")
+                pass
         elif isinstance(message, GroupMessage):
             with open(f"./{message.group_id}{self.group_path}", 'a') as f:
                 f.write(f"{message.sender_username}###{message.content}###{message.time}\n")

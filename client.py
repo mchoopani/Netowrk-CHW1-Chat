@@ -8,7 +8,7 @@ from time import sleep
 from consts import PORT, PUBLIC_CHATROOM_ID, UDP_PORT
 from db import Database
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus, StateMessage, ClientState, GroupMessage, JoinGroup, PVChatHistory
+    Response, ResponseStatus, StateMessage, ClientState, GroupMessage, JoinGroup, PVChatHistory, CheckGroupId
 from database import FileSystemDatabase
 
 
@@ -90,7 +90,11 @@ class MenuState(CommandState):
             return AvailabilityState(self.sock, self.udp_sock, self.commander)
         elif cmd == '6':
             group_id = input("Enter the group ID: ")
-            if not _database.check_group_id(group_id):
+            sock.send(str(CheckGroupId(username, group_id)).encode("utf-8"))
+            response = response_queue.get()
+            if not isinstance(response, Response):
+                return self.obey_and_go_next()
+            if response.status == ResponseStatus.FAIL:
                 print_online_users(self.udp_sock)
                 participants_str = input("Enter the usernames (comma-separated) to invite to the group: ")
                 participants = [participant.strip() for participant in participants_str.split(",")]
@@ -181,9 +185,11 @@ class ChatPage(CommandState):
             response = response_queue.get()
             if not isinstance(response, Response):
                 print("Invalid response received.")
+                self.closed = True
                 return ChatListState(self.sock, self.udp_sock, self.commander)
             elif response.status != ResponseStatus.OK:
                 print("saying hello failed: ", response.content)
+                self.closed = True
                 return ChatListState(self.sock, self.udp_sock, self.commander, )
 
             messages = db.get(message.receiver_username) or []
@@ -282,8 +288,6 @@ class GroupChatState(CommandState):
             print(e)
 
     def obey_and_go_next(self):
-        chat_messages = db.get(self.get_db_key()) or []
-        print("\n".join(list(map(lambda mess: mess.get_human_readable_output(), chat_messages))))
         threading.Thread(target=self.print_new_messages).start()
 
         while True:

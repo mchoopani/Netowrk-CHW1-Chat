@@ -79,7 +79,7 @@ class JoinGroup(GroupRoom):
         self.participants = participants
 
     def __str__(self):
-        return f"joinGroup###{self.sender_username}###{self.group_id}"
+        return f"joinGroup###{self.sender_username}###{self.group_id}###{'#'.join(self.participants)}"
 
 
 class StateMessage(Message):
@@ -159,6 +159,15 @@ class PVChatHistory(Message):
         return f"PVChatHistory###{self.target_username}###{self.content}"
 
 
+class CheckGroupId(Packet):
+    def __init__(self, sender_username: str, group_id: str):
+        super().__init__(sender_username)
+        self.group_id = group_id
+
+    def __str__(self):
+        return f"checkGroupId###{self.sender_username}###{self.group_id}"
+
+
 class MessageFactory:
     @classmethod
     def new_message(cls, raw_message: str) -> Packet:
@@ -182,7 +191,8 @@ class MessageFactory:
             return PublicMessage(sender, content, group_id, time)
         elif message_splits[0] == 'joinGroup':
             group_id = message_splits[2]
-            return JoinGroup(sender, group_id, [])
+            participants = message_splits[3].split("#")
+            return JoinGroup(sender, group_id, participants)
         elif message_splits[0] == 'group':
             group_id = message_splits[2]
             content = message_splits[3]
@@ -197,6 +207,9 @@ class MessageFactory:
         elif message_splits[0] == 'busyState':
             content = message_splits[2]
             return BusyStateMessage(sender, content)
+        elif message_splits[0] == 'checkGroupId':
+            group_id = message_splits[2]
+            return CheckGroupId(sender, group_id)
         elif message_splits[0] == 'response':
             status = message_splits[2]
             receiver = message_splits[1]

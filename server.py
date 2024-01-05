@@ -1,3 +1,4 @@
+import datetime
 import socket
 import threading
 import time
@@ -6,7 +7,8 @@ from consts import PORT, UDP_PORT, PUBLIC_CHATROOM_ID
 from database import DatabaseInterface, PasswordIsWrong, FileSystemDatabase
 from exceptions import DisconnectException
 from message import MessageFactory, PrivateMessage, Packet, JoinChatroom, LeaveChatroom, PublicMessage, LoginPacket, \
-    Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup, BusyStateMessage, PVChatHistory
+    Response, ResponseStatus, ClientState, StateMessage, GroupMessage, JoinGroup, BusyStateMessage, PVChatHistory, \
+    CheckGroupId
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.bind(('0.0.0.0', PORT))
@@ -68,7 +70,8 @@ class Handler:
                 self.dispatch(Response(message.sender_username, 'message sent.', ResponseStatus.OK, message_time))
             else:
                 self.dispatch(
-                    Response(message.sender_username, f"{message.receiver_username} is busy.", ResponseStatus.FAIL, message_time)
+                    Response(message.sender_username, f"{message.receiver_username} is busy.", ResponseStatus.FAIL,
+                             message_time)
                 )
         elif isinstance(message, JoinChatroom):
             self.dispatch(
@@ -89,7 +92,7 @@ class Handler:
             _database.save_message(message)
         elif isinstance(message, JoinGroup):
             for participant in message.participants:
-                self.add_to_group(participant, self.clients[participant])
+                self.add_to_group(message.group_id, self.clients[participant])
 
             self.dispatch(
                 GroupMessage(message.sender_username, f'I have joined.', message.group_id, message_time)
@@ -111,6 +114,11 @@ class Handler:
         elif isinstance(message, PVChatHistory):
             receiver: Client = self.clients[message.target_username]
             receiver.conn.send(str(message).encode("utf-8"))
+        elif isinstance(message, CheckGroupId):
+            exist = _database.check_group_id(message.group_id)
+            self.dispatch(
+                Response(message.sender_username, exist, ResponseStatus.OK if exist else ResponseStatus.FAIL,
+                         datetime.datetime.now()))
         else:
             raise Exception("unknown message." + str(message))
 
@@ -170,10 +178,12 @@ def add_client(conn, address):
             _, exist = _database.get_user_if_exist(mes.sender_username, mes.password)
             if not exist:
                 _database.save_user(mes.sender_username, mes.password)
-            handler.dispatch(Response(mes.sender_username, "you are logged in.", ResponseStatus.OK, time.strftime('%H:%M:%S')))
+            handler.dispatch(
+                Response(mes.sender_username, "you are logged in.", ResponseStatus.OK, time.strftime('%H:%M:%S')))
             handler.dispatch(PVChatHistory(mes.sender_username, _database.get_pv_messages(mes.sender_username)))
         except PasswordIsWrong:
-            handler.dispatch(Response(mes.sender_username, "your password is wrong", ResponseStatus.FAIL, time.strftime('%H:%M:%S')))
+            handler.dispatch(Response(mes.sender_username, "your password is wrong", ResponseStatus.FAIL,
+                                      time.strftime('%H:%M:%S')))
             func()
             return
 
